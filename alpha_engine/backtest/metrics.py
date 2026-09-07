@@ -63,7 +63,11 @@ class MetricsCalculator:
         drawdown = (nav - running_max) / running_max
         max_dd = drawdown.min()
 
-        calmar = cagr / abs(max_dd) if max_dd != 0 else 0.0
+        if max_dd == 0:
+            # no drawdown observed — calmar is unbounded
+            calmar = float("inf") if cagr > 0 else 0.0
+        else:
+            calmar = cagr / abs(max_dd)
 
         win_rate = (r > 0).mean()
 

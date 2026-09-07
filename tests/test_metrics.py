@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from alpha_engine.backtest.metrics import MetricsCalculator, PerformanceMetrics
+from alpha_engine.backtest.metrics import MetricsCalculator
 
 
 @pytest.fixture()

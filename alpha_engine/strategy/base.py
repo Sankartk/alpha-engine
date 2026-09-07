@@ -9,12 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 import pandas as pd
 
 
-class SignalType(str, Enum):
+class SignalType(StrEnum):
     LONG = "long"
     SHORT = "short"
     FLAT = "flat"

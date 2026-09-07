@@ -12,7 +12,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[2]))
 
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -33,7 +32,9 @@ with st.sidebar:
     strategy_name = st.selectbox("Strategy", ["Momentum", "Mean Reversion"])
     universe_name = st.selectbox("Universe", ["S&P 500 Sample", "Liquid ETFs"])
     lookback_years = st.slider("Lookback (years)", 1, 5, 2)
-    initial_capital = st.number_input("Initial capital ($)", 100_000, 10_000_000, 1_000_000, 100_000)
+    initial_capital = st.number_input(
+        "Initial capital ($)", 100_000, 10_000_000, 1_000_000, 100_000
+    )
     spread_bps = st.slider("Spread (bps)", 1, 20, 5)
 
     st.divider()
@@ -145,7 +146,7 @@ kpis = [
     ("Win Rate", f"{m.win_rate:.1%}", m.win_rate >= 0.5),
     ("Calmar", f"{m.calmar:.2f}", m.calmar >= 1),
 ]
-for col, (label, value, good) in zip(cols, kpis):
+for col, (label, value, _good) in zip(cols, kpis, strict=True):
     col.metric(label, value)
 
 st.divider()

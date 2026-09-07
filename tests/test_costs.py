@@ -47,7 +47,9 @@ class TestTransactionCostModel:
         small_cost = model.compute(small, prices, volumes).impact_cost
         large_cost = model.compute(large, prices, volumes).impact_cost
 
-        assert (large_cost > small_cost).all()
+        # skip the ADV warmup window where both are zero
+        warmup = model.adv_window
+        assert (large_cost.iloc[warmup:] > small_cost.iloc[warmup:]).all()
 
     def test_zero_trade_means_zero_cost(self, sample_data):
         prices, volumes = sample_data

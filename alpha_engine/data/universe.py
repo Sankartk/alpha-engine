@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-
 SP500_SAMPLE = [
     "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
     "META", "TSLA", "BRK-B", "JPM", "JNJ",
@@ -38,11 +37,11 @@ class Universe:
     )
 
     @classmethod
-    def sp500_sample(cls) -> "Universe":
+    def sp500_sample(cls) -> Universe:
         return cls(name="sp500_sample", symbols=SP500_SAMPLE)
 
     @classmethod
-    def liquid_etfs(cls) -> "Universe":
+    def liquid_etfs(cls) -> Universe:
         return cls(name="liquid_etfs", symbols=LIQUID_ETFS)
 
     def members_at(self, dt: datetime) -> list[str]:

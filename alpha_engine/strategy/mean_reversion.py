@@ -1,7 +1,7 @@
 """
 MeanReversionStrategy: z-score mean reversion with RSI confirmation.
 
-Entry: z-score of 20-day price vs 60-day mean exceeds ±2σ.
+Entry: z-score of 20-day price vs 60-day mean exceeds +/-2 standard deviations.
 Filter: RSI(14) confirms oversold/overbought before entering.
 Exit: z-score crosses back through 0.
 

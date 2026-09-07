@@ -71,8 +71,9 @@ class TestMeanReversionStrategy:
         prices, volumes = prices_volumes
         strategy = MeanReversionStrategy(mean_window=60, z_window=20)
         w = strategy.run(prices, volumes)
-        # Need at least mean_window days before any signal
-        assert (w.iloc[:60] == 0).all().all()
+        # rolling(60).mean() first produces a value at index 59, so a signal
+        # can legitimately appear there — everything before must be zero
+        assert (w.iloc[:59] == 0).all().all()
 
     def test_flat_market_gives_flat_weights(self):
         """Perfectly constant prices → z-score is 0/NaN → no position."""
