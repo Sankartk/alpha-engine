@@ -1,75 +1,82 @@
 # alpha-engine
 
-Quantitative strategy backtester with walk-forward validation, transaction cost modeling, and live paper trading via Alpaca.
+**Everyone has a trading strategy that "would have worked." Almost nobody can prove it.**
+
+alpha-engine is a backtesting framework that tries its best to prove your strategy *doesn't* work before the market does it for you — with real transaction costs, walk-forward validation, and a paper-trading loop that runs the same code against live prices.
 
 ---
 
-## What it demonstrates
+## Why I built it
 
-| Signal | Where |
-|---|---|
-| Vectorised backtesting (no Python loops in hot path) | `alpha_engine/backtest/engine.py` |
-| Walk-forward validation (prevents overfitting) | `alpha_engine/backtest/engine.py` |
-| Transaction cost modeling (spread + square-root impact) | `alpha_engine/backtest/costs.py` |
-| Two strategy implementations with no lookahead bias | `alpha_engine/strategy/` |
-| Full performance metrics (Sharpe, Sortino, Calmar, VaR, CVaR) | `alpha_engine/backtest/metrics.py` |
-| Live paper trading via Alpaca API | `alpha_engine/live/paper_trader.py` |
-| SOLID design: Strategy pattern, Repository pattern, Dependency Injection | throughout |
+I've seen too many backtests that were fiction. The pattern is always the same: someone writes a loop over historical prices, forgets that trades cost money, accidentally lets tomorrow's data leak into today's decision, and ends up with a beautiful equity curve that would have lost money in the real world.
 
----
+The three most common ways backtests lie:
 
-## Strategies
+1. **Lookahead bias** — your signal at time *t* uses information that only exists at *t+1*. Sometimes it's as subtle as applying today's weight to today's return.
+2. **Ignored costs** — a strategy with 50% daily turnover and a Sharpe of 2.0 on paper is often a Sharpe of 0.3 after spread and market impact.
+3. **Overfitting** — tune parameters on the whole dataset and you've built a model of the past, not the future.
 
-### Momentum
-Cross-sectional 12-1 month momentum, inverse-vol scaled, 200-day SMA trend filter.
-Long top 20%, short bottom 20%, max 10% per name.
+This engine is built around not making those mistakes.
 
-### Mean Reversion
-Z-score entry at ±2σ vs 60-day mean, RSI(14) confirmation, exit at z=0.
-Max 15% per name.
+## How it stops the lies
 
----
+**No lookahead, structurally.** Strategies produce target weights for day *t*. The engine shifts them by one day before multiplying by returns. You literally cannot earn tomorrow's return on today's signal — the code won't let you.
 
-## Quickstart
+**Real costs.** Every rebalance pays the bid-ask spread (linear) plus market impact (Almgren's square-root model: the bigger your order relative to average daily volume, the worse your fill). High-turnover strategies get punished the way they should.
+
+**Walk-forward validation.** Instead of one backtest over the full history, `walk_forward()` trains on 504 days, tests on the next 63, then steps forward and repeats. If your strategy only works on the data it was tuned on, this exposes it.
+
+## What's inside
+
+Two strategies, both deliberately simple:
+
+| Strategy | Idea | Filters |
+|---|---|---|
+| **Momentum** | Stocks that beat their peers over the last 12 months (skipping the most recent month) tend to keep winning | Volatility scaling, 200-day trend filter, 10% per-name cap |
+| **Mean reversion** | Prices stretched 2+ standard deviations from their 60-day mean tend to snap back | RSI confirmation so you don't catch falling knives |
+
+Both are vectorized pandas — no per-day Python loops — and both are fully tested, including tests that verify no future data leaks into signals.
+
+## The dashboard
 
 ```bash
-pip install -e .
-
-# Run a backtest
-python scripts/run_backtest.py --strategy momentum --universe sp500
-
-# Launch the dashboard
+pip install -e ".[dev]"
 streamlit run alpha_engine/dashboard/app.py
-
-# Paper trade (requires ALPACA_API_KEY + ALPACA_SECRET_KEY)
-python scripts/run_paper.py --strategy momentum
 ```
 
-## Architecture
+NAV curve, drawdown chart, rolling 63-day Sharpe, a weight heatmap so you can see what the strategy actually held, and 13 performance metrics including VaR and CVaR.
 
-```
-DataLoader (cache-aside, yfinance/Alpaca)
-     │
-     ▼
-Strategy.generate_signals()  →  weight matrix (dates × symbols)
-     │
-     ▼
-BacktestEngine
-  ├── shift weights by 1 day  (no lookahead)
-  ├── compute gross returns
-  ├── TransactionCostModel    (spread + square-root impact)
-  └── MetricsCalculator       (Sharpe, Sortino, Calmar, VaR, CVaR)
-     │
-     ▼
-BacktestResult
-     │
-     ├── Streamlit dashboard
-     └── PaperTrader (Alpaca) — live execution
+## Live paper trading
+
+The same weight targets the backtester produces can be sent to Alpaca's paper trading API:
+
+```bash
+export ALPACA_API_KEY=... ALPACA_SECRET_KEY=...
+python scripts/run_backtest.py --strategy momentum --walk-forward
 ```
 
-## Design principles
+This is where the honest accounting happens: live paper fills include real slippage and partial fills that no backtest perfectly models. The gap between backtest and paper performance is itself a measurement.
 
-- **No lookahead bias** — all signals use only past data at time *t*; weights are shifted by 1 day before computing returns.
-- **Walk-forward validation** — `engine.walk_forward()` trains on 504 days, tests on 63, steps forward 63. Never tests on training data.
-- **Cost realism** — spread cost + Almgren square-root market impact. Ignoring costs inflates Sharpe by 0.3–0.8 on high-turnover strategies.
-- **SOLID** — `BaseStrategy` / `BaseDataProvider` are abstract interfaces. `BacktestEngine` receives them via constructor injection. New strategies require zero changes to the engine.
+## Metrics reported
+
+Total return, CAGR, annualized volatility, Sharpe, Sortino, max drawdown, Calmar, win rate, profit factor, skew, kurtosis, 95% VaR, 95% CVaR — plus daily turnover and total cost drag, because those two numbers tell you whether the strategy survives contact with a broker.
+
+## Project layout
+
+```
+alpha_engine/
+  data/loader.py        — OHLCV fetching with parquet caching (yfinance or Alpaca)
+  strategy/             — BaseStrategy interface + momentum + mean reversion
+  backtest/engine.py    — the vectorized simulator + walk-forward
+  backtest/costs.py     — spread + square-root impact model
+  backtest/metrics.py   — the 13 metrics above
+  live/paper_trader.py  — Alpaca adapter for live paper execution
+  dashboard/app.py      — Streamlit UI
+tests/                  — 34 tests, including lookahead-bias guards
+```
+
+## What I'd add next
+
+- Short-borrow cost model (right now shorts are free, which is another small lie)
+- Portfolio-level risk limits (sector caps, gross exposure caps)
+- Intraday data support — the engine is daily-only by design, and that's worth changing carefully
